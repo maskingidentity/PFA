@@ -1,0 +1,303 @@
+\section{Cryptographic Constructions}\label{Appendix:Crypto}
+
+This appendix provides detailed constructions and security analysis of the cryptographic primitives used in our DL-based PFA protocol. We present comprehensive descriptions including correctness proofs and security analysis.
+
+\subsection{DL-based Linear Functional Encryption}\label{Appendix:DL-based LinFE}
+
+Linear Functional Encryption can be efficiently constructed using discrete logarithm assumptions in cyclic groups. This construction enables secure evaluation of linear functions while relying on well-established hardness assumptions.
+
+\paragraph{Construction}
+Let $\mathbb{G}$ be a cyclic group of prime order $p$ with generator $g$. The DL-based LinFE scheme consists of four algorithms:
+
+\begin{itemize}
+\item $\mathsf{LinFE.Setup}(1^\lambda, 1^\ell)$:
+   \begin{itemize}
+       \item Sample master secret key $\mathbf{s} = (\mathbf{s}_1,\ldots,\mathbf{s}_\ell)^T \leftarrow \mathbb{Z}_p^\ell$
+       \item Compute master public key $\mathsf{mpk} = (g^{\mathbf{s}_1},\ldots,g^{\mathbf{s}_\ell})$
+       \item Set $\mathsf{msk} = \mathbf{s}$
+       \item Return $(\mathsf{mpk}, \mathsf{msk})$
+   \end{itemize}
+
+\item $\mathsf{LinFE.KeyGen}(\mathsf{msk},\mathbf{y})$:
+   \begin{itemize}
+       \item Parse function vector $\mathbf{y} = (y_1,\ldots,y_\ell)^T \in \mathbb{Z}_p^\ell$
+       \item Compute functional secret key $\mathsf{sk}_{\mathbf{y}} = \sum_{i=1}^\ell \mathbf{s}_i \cdot y_i \bmod p$
+       \item Return $\mathsf{sk}_{\mathbf{y}}$
+   \end{itemize}
+   
+\item $\mathsf{LinFE.Enc}(\mathsf{mpk},\mathbf{x})$:
+   \begin{itemize}
+       \item Parse input vector $\mathbf{x} = (x_1,\ldots,x_\ell)^T \in \mathbb{Z}_p^\ell$
+       \item Sample randomness $r \leftarrow \mathbb{Z}_p$
+       \item Compute $c_0 = g^r$
+       \item For $i = 1, \ldots, \ell$: compute $c_i = \mathsf{mpk}_i^r \cdot g^{x_i} = g^{\mathbf{s}_i \cdot r + x_i}$
+       \item Return ciphertext $\mathsf{ct} = (c_0, \{c_i\}_{i=1}^\ell)$
+   \end{itemize}
+   
+\item $\mathsf{LinFE.Dec}(\mathsf{sk}_{\mathbf{y}},\mathsf{ct})$:
+   \begin{itemize}
+       \item Parse ciphertext $\mathsf{ct} = (c_0, c_1,\ldots,c_\ell)$
+       \item Compute $g^{\langle \mathbf{x}, \mathbf{y} \rangle} = \prod_{i=1}^\ell c_i^{y_i}/c_0^{\mathsf{sk}_{\mathbf{y}}}$
+       \item Solve discrete logarithm to obtain $\langle \mathbf{x}, \mathbf{y} \rangle = \mathsf{DLog}_g(g^{\langle \mathbf{x}, \mathbf{y} \rangle})$
+       \item Return $\langle \mathbf{x}, \mathbf{y} \rangle$
+   \end{itemize}
+\end{itemize}
+
+\paragraph{Correctness}
+We prove that the DL-based LinFE scheme correctly computes the inner product when the result is within a tractable range for discrete logarithm computation.
+
+\begin{thm}[DL-based LinFE Correctness]
+For vectors $\mathbf{x}, \mathbf{y} \in \mathbb{Z}_p^\ell$ with $|\langle \mathbf{x}, \mathbf{y} \rangle| \leq B$ for some polynomially bounded $B$, the DL-based LinFE scheme correctly computes $\langle \mathbf{x}, \mathbf{y} \rangle$ with overwhelming probability.
+\end{thm}
+
+\begin{proof}
+Let $(\mathsf{mpk}, \mathsf{msk}) \leftarrow \mathsf{LinFE.Setup}(1^\lambda, 1^\ell)$, $\mathsf{sk}_{\mathbf{y}} \leftarrow \mathsf{LinFE.KeyGen}(\mathsf{msk}, \mathbf{y})$, and $\mathsf{ct} \leftarrow \mathsf{LinFE.Enc}(\mathsf{mpk}, \mathbf{x})$.
+
+During decryption, we compute:
+\begin{align*}
+\prod_{i=1}^\ell c_i^{y_i}/c_0^{\mathsf{sk}_{\mathbf{y}}} &= \prod_{i=1}^\ell (g^{\mathbf{s}_i \cdot r + x_i})^{y_i}/(g^r)^{\sum_{i=1}^\ell \mathbf{s}_i \cdot y_i} \\
+&= \prod_{i=1}^\ell g^{(\mathbf{s}_i \cdot r + x_i) \cdot y_i}/g^{r \cdot \sum_{i=1}^\ell \mathbf{s}_i \cdot y_i} \\
+&= \prod_{i=1}^\ell g^{\mathbf{s}_i \cdot r \cdot y_i + x_i \cdot y_i}/g^{r \cdot \sum_{i=1}^\ell \mathbf{s}_i \cdot y_i} \\
+&= g^{\sum_{i=1}^\ell \mathbf{s}_i \cdot r \cdot y_i + \sum_{i=1}^\ell x_i \cdot y_i}/g^{r \cdot \sum_{i=1}^\ell \mathbf{s}_i \cdot y_i} \\
+&= g^{r \cdot \sum_{i=1}^\ell \mathbf{s}_i \cdot y_i + \sum_{i=1}^\ell x_i \cdot y_i}/g^{r \cdot \sum_{i=1}^\ell \mathbf{s}_i \cdot y_i} \\
+&= g^{\sum_{i=1}^\ell x_i \cdot y_i} = g^{\langle \mathbf{x}, \mathbf{y} \rangle}
+\end{align*}
+
+The correctness follows from the algebraic properties of the discrete logarithm. When $|\langle \mathbf{x}, \mathbf{y} \rangle| \leq B$ for polynomially bounded $B$, the discrete logarithm computation is feasible using standard algorithms such as Pollard's rho or baby-step giant-step.
+\end{proof}
+
+\paragraph{Security}
+The security of the DL-based LinFE scheme relies on the Decisional Diffie-Hellman (DDH) assumption.
+
+\begin{thm}[DL-based LinFE Security]
+Under the DDH assumption in group $\mathbb{G}$, the DL-based LinFE scheme achieves selective IND-CPA security.
+\end{thm}
+
+\begin{proof}
+We prove security through a sequence of hybrid games. Let $\mathcal{A}$ be a PPT adversary against the IND-CPA security of the LinFE scheme.
+
+\textbf{Game 0}: This is the original IND-CPA game where $\mathcal{A}$ receives an encryption of $\mathbf{x}_b$ for a random bit $b$.
+
+\textbf{Game 1}: We replace each component $c_i = g^{\mathbf{s}_i \cdot r + x_{b,i}}$ with $c_i = g^{u_i}$ for uniformly random $u_i \leftarrow \mathbb{Z}_p$. Under the DDH assumption, the tuples $(g, g^{\mathbf{s}_i}, g^r, g^{\mathbf{s}_i \cdot r})$ are indistinguishable from $(g, g^{\mathbf{s}_i}, g^r, g^{v_i})$ for random $v_i$. This makes $(g^{\mathbf{s}_i \cdot r + x_{b,i}}, g^{v_i + x_{b,i}})$ indistinguishable from random group elements.
+
+\textbf{Game 2}: We replace $c_0 = g^r$ with $c_0 = g^w$ for uniformly random $w \leftarrow \mathbb{Z}_p$. This change is indistinguishable under the DDL (Decisional Discrete Logarithm) assumption, which is implied by DDH.
+
+In Game 2, the ciphertext is independent of the bit $b$, hence $\mathcal{A}$'s advantage is 0. By the indistinguishability of consecutive games, $\mathcal{A}$'s advantage in Game 0 is negligible.
+\end{proof}
+
+% \paragraph{Parameter Selection}
+% For practical implementations, the following parameter guidelines should be followed:
+% \begin{itemize}
+%     \item \textbf{Group selection}: Use elliptic curve groups with at least 256-bit security (e.g., secp256k1, Curve25519)
+%     \item \textbf{Bound selection}: The inner product bound $B$ should be chosen such that discrete logarithm computation remains feasible (typically $B \leq 2^{40}$)
+%     \item \textbf{Vector dimension}: The dimension $\ell$ can be arbitrarily large without affecting the security, but impacts efficiency
+% \end{itemize}
+
+\subsection{Paillier Encryption Scheme}\label{Appendix:Paillier}
+
+The Paillier encryption scheme provides additive homomorphism with direct arithmetic operations, making it ideal for applications requiring homomorphic computation over encrypted integers.
+
+\paragraph{Construction}
+The Paillier scheme operates over the group $\mathbb{Z}_{n^2}^*$ where $n = p'q'$ for large primes $p', q'$. The scheme consists of four algorithms:
+
+\begin{itemize}
+\item $\mathsf{Paillier.KeyGen}(1^\lambda)$:
+   \begin{itemize}
+       \item Choose two large prime numbers $p', q'$ of approximately equal length (typically $|p'| = |q'| = \lambda/2$)
+       \item Compute $n = p' \cdot q'$ and $\phi(n) = (p'-1) \cdot (q'-1)$
+       \item Compute $\Lambda = \text{lcm}(p'-1, q'-1)$
+       \item Select $g \in \mathbb{Z}_{n^2}^*$ such that $g$ has order $\alpha \cdot n$ in $\mathbb{Z}_{n^2}^*$ for some $\alpha \in \mathbb{Z}_n^*$
+       \begin{itemize}
+           \item A simple choice is $g = n + 1$, which ensures $L(g^\Lambda \bmod n^2) = \Lambda \bmod n$ where $L(x) = \frac{x-1}{n}$
+       \end{itemize}
+       \item Compute $\mu = (L(g^\Lambda \bmod n^2))^{-1} \bmod n$
+       \item Set public key $\mathsf{pk_E} = (n, g)$ and secret key $\mathsf{sk_E} = (\Lambda, \mu)$
+       \item Return $(\mathsf{pk_E}, \mathsf{sk_E})$
+   \end{itemize}
+
+\item $\mathsf{Paillier.Enc}(\mathsf{pk_E}, m)$:
+   \begin{itemize}
+       \item Parse public key $\mathsf{pk_E} = (n, g)$ and message $m \in \mathbb{Z}_n$
+       \item Select random $r \in \mathbb{Z}_n^*$
+       \item Compute ciphertext $c = g^m \cdot r^n \bmod n^2$
+       \item Return $\mathsf{ct} = c$
+   \end{itemize}
+   
+\item $\mathsf{Paillier.Dec}(\mathsf{sk_E}, \mathsf{ct})$:
+   \begin{itemize}
+       \item Parse ciphertext $\mathsf{ct} = c$ and secret key $\mathsf{sk_E} = (\Lambda, \mu)$
+       \item Compute $m = L(c^\Lambda \bmod n^2) \cdot \mu \bmod n$ where $L(x) = \frac{x-1}{n}$
+       \item Return $m$
+   \end{itemize}
+   
+\item $\mathsf{Paillier.Eval}(\mathsf{pk_E}, \mathsf{ct}_1, \mathsf{ct}_2)$:
+   \begin{itemize}
+       \item Parse ciphertexts $\mathsf{ct}_1 = c_1$ and $\mathsf{ct}_2 = c_2$
+       \item Compute homomorphic addition $c = (c_1 \cdot c_2) \bmod n^2$
+       \item Return $\mathsf{ct} = c$
+   \end{itemize}
+\end{itemize}
+
+\paragraph{Correctness}
+We prove the correctness of both decryption and homomorphic evaluation in the Paillier scheme.
+
+\begin{thm}[Paillier Decryption Correctness]
+The Paillier decryption algorithm correctly recovers the original message with overwhelming probability.
+\end{thm}
+
+\begin{proof}
+For a ciphertext $c = g^m \cdot r^n \bmod n^2$ encrypting message $m$:
+
+\begin{align*}
+L(c^\Lambda \bmod n^2) \cdot \mu &= L((g^m \cdot r^n)^\Lambda \bmod n^2) \cdot \mu \\
+&= L(g^{m\Lambda} \cdot r^{n\Lambda} \bmod n^2) \cdot \mu
+\end{align*}
+
+Since $r^{n\Lambda} \equiv 1 \pmod{n^2}$ by Carmichael's theorem (as $\Lambda$ is the Carmichael function value), we have:
+
+\begin{align*}
+L(g^{m\Lambda} \bmod n^2) \cdot \mu
+\end{align*}
+
+For $g = n + 1$, we have $g^\Lambda = (n+1)^\Lambda \equiv 1 + \Lambda n \pmod{n^2}$ by the binomial theorem (since higher order terms contain $n^2$). More generally, if $g$ has the required form, then $g^\Lambda \bmod n^2 = 1 + k\Lambda n$ for some integer $k$ with $\gcd(k, n) = 1$.
+
+Therefore:
+\begin{align*}
+L(g^{m\Lambda} \bmod n^2) \cdot \mu &= L((1 + k\Lambda n)^m \bmod n^2) \cdot \mu \\
+&= L(1 + mk\Lambda n \bmod n^2) \cdot \mu \\
+&= \frac{mk\Lambda n}{n} \cdot \mu \bmod n \\
+&= mk\Lambda \cdot \mu \bmod n
+\end{align*}
+
+Since $\mu = (k\Lambda)^{-1} \bmod n$, we obtain $mk\Lambda \cdot \mu = m \bmod n$.
+\end{proof}
+
+\begin{thm}[Paillier Homomorphic Addition Correctness]
+The Paillier evaluation algorithm correctly computes the sum of plaintexts modulo $n$.
+\end{thm}
+
+\begin{proof}
+For ciphertexts $c_1 = g^{m_1} \cdot r_1^n$ and $c_2 = g^{m_2} \cdot r_2^n$:
+
+\begin{align*}
+c_1 \cdot c_2 &= g^{m_1} \cdot r_1^n \cdot g^{m_2} \cdot r_2^n \bmod n^2 \\
+&= g^{m_1+m_2} \cdot (r_1 \cdot r_2)^n \bmod n^2
+\end{align*}
+
+This is a valid encryption of $m_1 + m_2 \bmod n$ with randomness $r_1 \cdot r_2 \bmod n$. Since $r_1, r_2 \in \mathbb{Z}_n^*$, their product is also in $\mathbb{Z}_n^*$, maintaining the correct distribution.
+\end{proof}
+
+\paragraph{Security}
+The Paillier encryption scheme achieves semantic security under the Decisional Composite Residuosity (DCR) assumption.
+
+\begin{thm}[Paillier Semantic Security]
+Under the DCR assumption, the Paillier encryption scheme achieves IND-CPA security.
+\end{thm}
+
+\begin{proof}
+The security proof relies on the DCR assumption, which states that it is computationally hard to distinguish between a random element in $\mathbb{Z}_{n^2}^*$ and a random $n$-th power in $\mathbb{Z}_{n^2}^*$.
+
+Given a DCR challenge $(n, z)$ where $z$ is either a random element in $\mathbb{Z}_{n^2}^*$ or a random $n$-th power, we construct a reduction that uses an IND-CPA adversary to solve the DCR problem.
+
+The reduction works by setting up the Paillier public key as $(n, g)$ where $g$ is derived from the DCR challenge. When the adversary submits two messages $m_0, m_1$, the reduction responds with a ciphertext of the form $g^{m_b} \cdot z$ for a random bit $b$. If $z$ is an $n$-th power, this is a valid Paillier encryption; otherwise, it is a random element. The adversary's ability to distinguish these cases directly translates to solving the DCR problem.
+\end{proof}
+
+\paragraph{Homomorphic Properties}
+Paillier encryption supports the following homomorphic operations:
+
+\begin{itemize}
+    \item \textbf{Additive Homomorphism}: $\mathsf{Enc}(m_1) \cdot \mathsf{Enc}(m_2) = \mathsf{Enc}(m_1 + m_2 \bmod n)$
+    \item \textbf{Scalar Multiplication}: $\mathsf{Enc}(m)^k = \mathsf{Enc}(k \cdot m \bmod n)$ for any scalar $k \in \mathbb{Z}_n$
+    \item \textbf{Additive Inverse}: $\mathsf{Enc}(m)^{-1} = \mathsf{Enc}(-m \bmod n)$
+\end{itemize}
+
+These properties enable efficient computation of linear functions over encrypted data, which is essential for our PFA protocol's $\mathsf{Encode}$ operation.
+
+% \paragraph{Parameter Selection}
+% For practical security, the following parameters should be chosen:
+
+% \begin{itemize}
+%     \item \textbf{Key size}: For $\lambda$-bit security, use $|n| = 2\lambda$ (e.g., 2048-bit $n$ for 128-bit security)
+%     \item \textbf{Prime generation}: Use strong primes $p', q'$ with $|p'| = |q'| = \lambda$
+%     \item \textbf{Generator selection}: The choice $g = n + 1$ is both secure and efficient
+%     \item \textbf{Randomness}: Ensure proper random number generation for $r \in \mathbb{Z}_n^*$
+% \end{itemize}
+
+
+\subsection{Schnorr-based Adaptor Signature Construction}\label{Appendix:Schnorr-based AS}
+Let $\mathbb{G}$ be a cyclic group of prime order $p$ with generator $g$. Let $H: \{0,1\}^* \rightarrow \mathbb{Z}_p$ be a cryptographic hash function modeled as a random oracle. A Schnorr-based adaptor signature scheme can be constructed as follows \cite{GSS+24, ER22}:
+\begin{itemize}
+   \item $\mathsf{AS.KeyGen}(1^\lambda)$:
+       \begin{itemize}
+           \item Sample $x \leftarrow \mathbb{Z}_p$
+           \item Compute $X = g^x$
+           \item Set $\mathsf{pk_S}=X, \mathsf{sk_S}=x$
+           \item Return $(\mathsf{pk_S}, \mathsf{sk_S})$
+       \end{itemize}
+       
+   \item $\mathsf{AS.PreSign}(\mathsf{sk_S}, m, Y)$:
+       \begin{itemize}
+           \item Sample $r \leftarrow \mathbb{Z}_p$
+           \item Compute $R = g^r$
+           \item Compute $c = H(\mathsf{pk_S}||R || Y||m)$
+           \item Compute $s = r + c \cdot \mathsf{sk_S}$
+           \item Return $\widetilde{\sigma} = (R,s)$
+       \end{itemize}
+       
+   \item $\mathsf{AS.PreVerify}(\mathsf{pk_S}, m, Y, \widetilde{\sigma})$:
+       \begin{itemize}
+           \item Parse $\widetilde{\sigma} = (R,s)$
+           \item Compute $c = H(\mathsf{pk_S}||R || Y||m)$
+           \item Return 1 if $g^s = R \cdot \mathsf{pk_S}^c$, else 0
+       \end{itemize}
+       
+   \item $\mathsf{AS.Adapt}(\widetilde{\sigma}, y)$:
+       \begin{itemize}
+           \item Parse $\widetilde{\sigma} = (R,s)$
+           \item Compute $\sigma = (R, s + y)$
+           \item Return $\sigma$
+       \end{itemize}
+       
+   \item $\mathsf{AS.Verify}(\mathsf{pk_S}, m, \sigma)$:
+       \begin{itemize}
+           \item Parse $\sigma = (R,s)$
+           \item Compute $c = H(\mathsf{pk_S}||R||m)$
+           \item Verify $g^s = R \cdot \mathsf{pk_S}^c \cdot Y$
+           \item Return 1 if verification succeeds, else 0
+       \end{itemize}
+       
+   \item $\mathsf{AS.Ext}(\widetilde{\sigma}, \sigma, Y)$:
+        \begin{itemize}
+            \item Parse $\widetilde{\sigma} = (R,s)$ and $\sigma = (R',s')$
+            \item Compute $y = s' - s$
+            \item Verify $g^y = Y$ and $R = R'$
+            \item Return $y$ if verification succeeds, else $\perp$
+        \end{itemize}
+\end{itemize}
+
+\paragraph{Correctness} The correctness of the Schnorr-based adaptor signature scheme follows from the algebraic structure of the construction:
+
+1. \textbf{Pre-signature verification correctness}:
+   \begin{align*}
+   g^s &= g^{r + c \cdot \mathsf{sk_S}} \\
+   &= g^r \cdot g^{c \cdot \mathsf{sk_S}} \\
+   &= R \cdot (\mathsf{pk_S})^c
+   \end{align*}
+
+2. \textbf{Adaptation correctness}:
+   After adapting the pre-signature $(R,s)$ to a full signature $(R, s+y)$ using the secret value $y$ where $Y = g^y$:
+   \begin{align*}
+   g^{s+y} &= g^s \cdot g^y \\
+   &= R \cdot \mathsf{pk_S}^c \cdot Y
+   \end{align*}
+
+3. \textbf{Extraction correctness}:
+   Given a pre-signature $\widetilde{\sigma} = (R,s)$ and a valid signature $\sigma = (R, s+y)$, the extraction process computes:
+   \begin{align*}
+   s' - s &= (s+y) - s = y
+   \end{align*}
+   The verification $g^y = Y$ confirms that the extracted value corresponds to the secret value committed in $Y$.
+
+\begin{thm}
+The above construction is secure under the discrete logarithm assumption in $\mathbb{G}$ and assuming $H$ is a random oracle \cite{Schnorr91, Lindell17}.
+\end{thm}

@@ -1,0 +1,508 @@
+\section{Lattice-based Instantiation}
+\subsection{Lattice-based Linear Functional Encryption}\label{Appendix:Lattice-LinFE}
+
+Lattice-based Linear Functional Encryption provides post-quantum security while enabling secure evaluation of linear functions over encrypted data. This construction relies on the Ring Learning With Errors (Ring-LWE) assumption.
+
+\paragraph{Construction}
+Let $R_q = \mathbb{Z}[x]/(x^n+1)$ be a polynomial ring with coefficients modulo $q$, where $n$ is a power of two. The lattice-based LinFE scheme consists of four algorithms:
+
+\begin{itemize}
+\item $\mathsf{LinFE.Setup}(1^\lambda, 1^\ell)$:
+   \begin{itemize}
+       \item Sample uniformly random $a \in R_q$
+       \item Sample $\{\mathbf{s}_i \in R\}_{i \in [\ell]}$ from discrete Gaussian distribution $D_{\sigma_1}$
+       \item Sample $\{\mathbf{e}_i \in R\}_{i \in [\ell]}$ from discrete Gaussian distribution $D_{\sigma_1}$
+       \item Set master public key $\mathsf{mpk} = (a, \{pk_i\}_{i \in [\ell]})$, where $pk_i = a\mathbf{s}_i + \mathbf{e}_i \in R_q$
+       \item Set master secret key $\mathsf{msk} = \{\mathbf{s}_i\}_{i \in [\ell]}$
+       \item Return $(\mathsf{mpk}, \mathsf{msk})$
+   \end{itemize}
+
+\item $\mathsf{LinFE.KeyGen}(\mathsf{msk},\mathbf{y})$:
+   \begin{itemize}
+       \item Parse function vector $\mathbf{y} = (y_1, \ldots, y_\ell)^T \in \mathbb{Z}^\ell$ with $||\mathbf{y}||_\infty < B_y$
+       \item Compute functional secret key $\mathsf{sk}_{\mathbf{y}} = \sum_{i=1}^\ell y_i \mathbf{s}_i \in R$
+       \item Return $\mathsf{sk}_{\mathbf{y}}$
+   \end{itemize}
+   
+\item $\mathsf{LinFE.Enc}(\mathsf{mpk},\mathbf{x})$:
+   \begin{itemize}
+       \item Parse input vector $\mathbf{x} = (x_1, \ldots, x_\ell)^T \in \mathbb{Z}^\ell$ with $||\mathbf{x}||_\infty \leq B_x$
+       \item Sample randomness $r \leftarrow D_{\sigma_2}$ from discrete Gaussian distribution
+       \item Sample error term $f_0 \leftarrow D_{\sigma_2}$
+       \item Sample error polynomials $\{f_i \in R_q \}_{i \in [\ell]}$ independently from $D_{\sigma_3}$
+       \item Compute $ct_0 = ar + f_0 \in R_q$
+       \item For each $i \in [\ell]$: compute $ct_i = pk_i r + f_i + \lfloor q/K \rfloor \cdot x_i \cdot 1_R \in R_q$
+       \item Return ciphertext $\mathsf{ct} = (ct_0, \{ct_i\}_{i \in [\ell]})$
+   \end{itemize}
+   
+\item $\mathsf{LinFE.Dec}(\mathsf{sk}_{\mathbf{y}},\mathsf{ct})$:
+   \begin{itemize}
+       \item Parse ciphertext $\mathsf{ct} = (ct_0, \{ct_i\}_{i \in [\ell]})$
+       \item Compute $d = \left(\sum_{i=1}^\ell y_i ct_i\right) - ct_0 \mathsf{sk}_{\mathbf{y}} \bmod R_q$
+       \item For each coefficient $d_j$ of polynomial $d$:
+       \begin{itemize}
+           \item If $d_j > q/2$: set $d_j = d_j - q$ (centered reduction)
+           \item Compute $z_j = \left\lfloor \frac{d_j \cdot K}{\lfloor q/K \rfloor} \right\rceil$ (scale and round)
+       \end{itemize}
+       \item Return $z_0$ (constant term) as the inner product $\langle \mathbf{x}, \mathbf{y} \rangle$
+   \end{itemize}
+\end{itemize}
+
+\paragraph{Correctness}
+We prove that the lattice-based LinFE scheme correctly computes the inner product for appropriately chosen parameters.
+
+\begin{theorem}[Correctness of Lattice-based LinFE]
+Let $\mathbf{x} \in \mathbb{Z}^\ell$ with $||\mathbf{x}||_\infty \leq B_x$ and $\mathbf{y} \in \mathbb{Z}^\ell$ with $||\mathbf{y}||_\infty < B_y$. For appropriately chosen parameters satisfying the noise bounds, the lattice-based LinFE scheme correctly computes $\langle \mathbf{x}, \mathbf{y} \rangle$ with overwhelming probability.
+\end{theorem}
+
+\begin{proof}
+Let $(\mathsf{mpk}, \mathsf{msk}) \leftarrow \mathsf{LinFE.Setup}(1^\lambda, 1^\ell)$, $\mathsf{sk}_{\mathbf{y}} \leftarrow \mathsf{LinFE.KeyGen}(\mathsf{msk}, \mathbf{y})$, and $\mathsf{ct} \leftarrow \mathsf{LinFE.Enc}(\mathsf{mpk}, \mathbf{x})$.
+
+During decryption, we compute:
+\begin{align*}
+d &= \left(\sum_{i=1}^\ell y_i ct_i\right) - ct_0 \mathsf{sk}_{\mathbf{y}} \\
+&= \left(\sum_{i=1}^\ell y_i (pk_i r + f_i + \lfloor q/K \rfloor \cdot x_i \cdot 1_R)\right) - (ar + f_0) \left(\sum_{i=1}^\ell y_i \mathbf{s}_i\right) \\
+&= \sum_{i=1}^\ell y_i pk_i r + \sum_{i=1}^\ell y_i f_i + \sum_{i=1}^\ell y_i \lfloor q/K \rfloor \cdot x_i \cdot 1_R - ar \sum_{i=1}^\ell y_i \mathbf{s}_i - f_0 \sum_{i=1}^\ell y_i \mathbf{s}_i \\
+&= \sum_{i=1}^\ell y_i (a\mathbf{s}_i + \mathbf{e}_i) r + \sum_{i=1}^\ell y_i f_i + \lfloor q/K \rfloor \cdot \langle \mathbf{x}, \mathbf{y} \rangle \cdot 1_R - ar \sum_{i=1}^\ell y_i \mathbf{s}_i - f_0 \sum_{i=1}^\ell y_i \mathbf{s}_i \\
+&= ar \sum_{i=1}^\ell y_i \mathbf{s}_i + r \sum_{i=1}^\ell y_i \mathbf{e}_i + \sum_{i=1}^\ell y_i f_i + \lfloor q/K \rfloor \cdot \langle \mathbf{x}, \mathbf{y} \rangle \cdot 1_R - ar \sum_{i=1}^\ell y_i \mathbf{s}_i - f_0 \sum_{i=1}^\ell y_i \mathbf{s}_i \\
+&= \lfloor q/K \rfloor \cdot \langle \mathbf{x}, \mathbf{y} \rangle \cdot 1_R + \text{noise}
+\end{align*}
+
+where the noise term is:
+\begin{align*}
+\text{noise} = r \sum_{i=1}^\ell y_i \mathbf{e}_i + \sum_{i=1}^\ell y_i f_i - f_0 \sum_{i=1}^\ell y_i \mathbf{s}_i
+\end{align*}
+
+For correctness, we need the noise to be bounded such that after scaling and rounding, we recover $\langle \mathbf{x}, \mathbf{y} \rangle$. This requires:
+\begin{align*}
+||\text{noise}||_\infty < \frac{\lfloor q/K \rfloor}{2}
+\end{align*}
+
+With appropriate parameter selection (detailed below), this bound is satisfied with overwhelming probability.
+\end{proof}
+
+\paragraph{Security}
+The security of the lattice-based LinFE scheme relies on the Ring Learning With Errors (Ring-LWE) assumption.
+
+\begin{theorem}[Security of Lattice-based LinFE]
+Under the Ring-LWE assumption with appropriate parameters, the lattice-based LinFE scheme achieves selective IND-CPA security.
+\end{theorem}
+
+\begin{proof}
+The proof follows the standard approach of showing that distinguishing between encryptions of different vectors is as hard as solving Ring-LWE instances. The Ring-LWE assumption states that samples $(a_i, b_i = a_i \cdot s + e_i)$ in $R_q \times R_q$ are computationally indistinguishable from uniform random pairs, where $a_i \stackrel{\$}{\leftarrow} R_q$, $s \stackrel{\$}{\leftarrow} R_q$, and $e_i \leftarrow \chi$ from an appropriate error distribution.
+
+The reduction proceeds by replacing each component $ct_i = pk_i r + f_i + \lfloor q/K \rfloor \cdot x_i \cdot 1_R$ with a random element, using the Ring-LWE assumption to argue indistinguishability at each step.
+\end{proof}
+
+\subsection{BFV Encryption Scheme}\label{Appendix:BFV}
+
+The BFV (Brakerski-Fan-Vercauteren) scheme is a lattice-based encryption system that supports additive homomorphism and is secure under the Ring Learning With Errors (Ring-LWE) assumption. Unlike other lattice-based schemes, BFV provides more predictable noise growth, making it suitable for applications requiring multiple homomorphic operations.
+
+\paragraph{Construction}
+Let $R = \mathbb{Z}[x]/\Phi_m(x)$ be the ring defined by cyclotomic polynomial $\Phi_m(x)$ of degree $n = \phi(m)$. Define $R_q = R/qR$ and $R_t = R/tR$ for moduli $q \gg t$, with scaling factor $\Delta = \lfloor q/t \rfloor$.
+
+\begin{itemize}
+\item $\mathsf{BFV.KeyGen}(1^\lambda)$:
+   \begin{itemize}
+       \item Sample secret key $\mathbf{s}_E \leftarrow R_2$ (binary coefficients)
+       \item Sample $\mathbf{a}_E \leftarrow R_q$ uniformly at random
+       \item Sample error $\mathbf{e}_E \leftarrow \chi_{\sigma_1}$ from error distribution
+       \item Compute $\mathbf{b}_E = -(\mathbf{a}_E \cdot \mathbf{s}_E + \mathbf{e}_E) \in R_q$
+       \item Set public key $\mathsf{pk_E} = (\mathbf{b}_E, \mathbf{a}_E)$ and secret key $\mathsf{sk_E} = \mathbf{s}_E$
+       \item Return $(\mathsf{pk_E}, \mathsf{sk_E})$
+   \end{itemize}
+
+\item $\mathsf{BFV.Enc}(\mathsf{pk_E}, m)$:
+   \begin{itemize}
+       \item Map message $m$ to polynomial $\mathbf{m} \in R_t$
+       \item Sample randomness $\mathbf{u} \leftarrow R_q$ uniformly at random
+       \item Sample noise terms $\mathbf{e}_0, \mathbf{e}_1 \leftarrow \chi_{\sigma_2}$
+       \item Compute $\mathbf{c}_0 = \Delta \cdot \mathbf{m} + \mathbf{e}_0 + \mathbf{u} \cdot \mathbf{a}_E \in R_q$
+       \item Compute $\mathbf{c}_1 = \mathbf{e}_1 + \mathbf{u} \in R_q$
+       \item Return ciphertext $\mathsf{ct} = (\mathbf{c}_0, \mathbf{c}_1)$
+   \end{itemize}
+   
+\item $\mathsf{BFV.Dec}(\mathsf{sk_E}, \mathsf{ct})$:
+   \begin{itemize}
+       \item Parse ciphertext $\mathsf{ct} = (\mathbf{c}_0, \mathbf{c}_1)$
+       \item Compute $\mathbf{v} = \mathbf{c}_0 + \mathbf{c}_1 \cdot \mathbf{s}_E \bmod q$
+       \item Return message $\mathbf{m}' = \left\lfloor \frac{t \cdot \mathbf{v}}{q} \right\rceil \bmod t$
+   \end{itemize}
+   
+\item $\mathsf{BFV.Eval}(\mathsf{pk_E}, \mathsf{ct}_1, \mathsf{ct}_2)$:
+   \begin{itemize}
+       \item Parse ciphertexts $\mathsf{ct}_1 = (\mathbf{c}_{0,1}, \mathbf{c}_{1,1})$ and $\mathsf{ct}_2 = (\mathbf{c}_{0,2}, \mathbf{c}_{1,2})$
+       \item Compute homomorphic addition $\mathsf{ct} = (\mathbf{c}_{0,1} + \mathbf{c}_{0,2}, \mathbf{c}_{1,1} + \mathbf{c}_{1,2}) \bmod q$
+       \item Return $\mathsf{ct}$
+   \end{itemize}
+\end{itemize}
+
+\paragraph{Correctness}
+We prove the correctness of BFV decryption and homomorphic evaluation.
+
+\begin{theorem}[BFV Decryption Correctness]
+For a properly generated ciphertext $\mathsf{ct} = (\mathbf{c}_0, \mathbf{c}_1)$ encrypting message $\mathbf{m}$, the BFV decryption algorithm correctly recovers $\mathbf{m}$ with overwhelming probability when noise bounds are satisfied.
+\end{theorem}
+
+\begin{proof}
+During decryption, we compute:
+\begin{align*}
+\mathbf{v} &= \mathbf{c}_0 + \mathbf{c}_1 \cdot \mathbf{s}_E \\
+&= \Delta \cdot \mathbf{m} + \mathbf{e}_0 + \mathbf{u} \cdot \mathbf{a}_E + (\mathbf{e}_1 + \mathbf{u}) \cdot \mathbf{s}_E \\
+&= \Delta \cdot \mathbf{m} + \mathbf{e}_0 + \mathbf{u} \cdot \mathbf{a}_E + \mathbf{e}_1 \cdot \mathbf{s}_E + \mathbf{u} \cdot \mathbf{s}_E \\
+&= \Delta \cdot \mathbf{m} + \mathbf{e}_0 + \mathbf{u} \cdot (\mathbf{a}_E + \mathbf{s}_E) + \mathbf{e}_1 \cdot \mathbf{s}_E
+\end{align*}
+
+Since $\mathbf{b}_E = -(\mathbf{a}_E \cdot \mathbf{s}_E + \mathbf{e}_E)$, we have $\mathbf{a}_E + \mathbf{s}_E = -\mathbf{b}_E/\mathbf{s}_E - \mathbf{e}_E/\mathbf{s}_E$. However, the key insight is that the noise term:
+\begin{align*}
+\text{noise} = \mathbf{e}_0 + \mathbf{u} \cdot (-\mathbf{e}_E) + \mathbf{e}_1 \cdot \mathbf{s}_E
+\end{align*}
+
+When the noise is bounded such that $||\text{noise}||_\infty < \frac{q}{2t}$, the scaling and rounding operation correctly recovers $\mathbf{m}$.
+\end{proof}
+
+
+\subsection{Lattice-based Instantiation}\label{lattice_instantiation(BFV)}
+Our lattice-based instantiation combines the lattice-based LinFE scheme with BFV homomorphic encryption and Schnorr-based adaptor signature scheme. This hybrid approach leverages lattice-based cryptography for the data encryption and function evaluation components, while utilizing Schnorr signatures for efficient fair exchange.
+
+
+\paragraph{Construction}
+The key algorithms for the lattice-based approach are instantiated as follows:
+
+\begin{itemize}
+\item $\mathsf{Setup}(1^\lambda)$:
+   \begin{itemize}
+       \item Choose lattice parameters $n, q, t, \sigma_1, \sigma_2, \sigma_3$ where $n$ is the lattice dimension (power of two, determines security), $q$ is the ciphertext modulus (defines Ring-LWE problem), and $t$ is the plaintext modulus (plaintext space size)
+       \item Define cyclotomic polynomial $\Phi_m(x)$ of degree $n$
+       \item Set bounds $B_x, B_y, K$
+       \item Compute scaling factor $\Delta = \lfloor q/t \rfloor$
+       \item Generate $\mathsf{crs}$ for the NIZK system
+       \item Return $(\mathsf{crs}, \mathsf{pp})$ where $\mathsf{pp} = (n, q, t, \Delta, \sigma_1, \sigma_2, \sigma_3, \Phi_m(x), B_x, B_y, K)$
+   \end{itemize}
+   
+\item $\mathsf{KGen}(1^\lambda, \mathsf{pp})$:
+   \begin{itemize}
+       \item For LinFE:
+           \begin{itemize}
+               \item Sample uniformly random $a \in R_q$
+               \item Sample $\{\mathbf{s}_i \in R\}_{i \in [\ell]}$ from $D_{\sigma_1}$
+               \item Sample $\{\mathbf{e}_i \in R\}_{i \in [\ell]}$ from $D_{\sigma_1}$
+               \item Set $\mathsf{mpk} = (a, \{pk_i\}_{i \in [\ell]})$, where $pk_i = a\mathbf{s}_i + \mathbf{e}_i \in R_q$
+               \item Set $\mathsf{msk} = \{\mathbf{s}_i\}_{i \in [\ell]}$
+           \end{itemize}
+       \item For BFV Encryption:
+           \begin{itemize}
+               \item Sample secret key $\mathbf{s}_E \leftarrow R_2$ (binary coefficients)
+               \item Sample $\mathbf{a}_E \leftarrow R_q$ uniformly at random
+               \item Sample error $\mathbf{e}_E \leftarrow \chi_{\sigma_1}$
+               \item Compute $\mathbf{b}_E = -(\mathbf{a}_E \cdot \mathbf{s}_E + \mathbf{e}_E) \in R_q$
+               \item Set $\mathsf{pk_E} = (\mathbf{b}_E, \mathbf{a}_E)$, $\mathsf{sk_E} = \mathbf{s}_E$
+           \end{itemize}
+       \item For Adaptor Signature:
+           \begin{itemize}
+               \item Sample $x \leftarrow \mathbb{Z}_p$
+               \item Compute $X = g^x$
+               \item Set $\mathsf{pk_S} = X$, $\mathsf{sk_S} = x$
+           \end{itemize}
+       \item Return $(\mathsf{mpk}, \mathsf{msk}), (\mathsf{pk_E}, \mathsf{sk_E}), (\mathsf{pk_S}, \mathsf{sk_S})$
+   \end{itemize}
+
+\item $\mathsf{FGen}(\mathsf{pp},\mathbf{f})$:
+\begin{itemize}
+    \item Generate random vectors $\mathbf{f}_1, \mathbf{f}_2, \ldots, \mathbf{f}_{k-1} \stackrel{\$}{\leftarrow}\mathbb{Z}_t^\ell$ where $||\mathbf{f}_i||_\infty < B_y$
+    \item Sample invertible matrix $\mathbf{R}\stackrel{\$}{\leftarrow} \mathbb{Z}_t^{k\times k}$ where $||\mathbf{R}_i||_\infty < B_y$
+    \item Compute $\mathbf{F} \leftarrow [\mathbf{f}|\cdots|\mathbf{f}_{k-1}]\cdot \mathbf{R}$, where $\mathbf{F}=[\mathbf{\hat{f}}_0|\cdots|\mathbf{\hat{f}}_{k-1}]$
+    \item For $0\leq i\leq k-1$:
+    \begin{itemize}
+        \item Compute $\mathsf{fct}_i \leftarrow \mathsf{LinFE.Enc}(\mathsf{mpk}, \mathbf{\hat{f}}_i)$ using lattice-based LinFE:
+        \begin{itemize}
+            \item Sample $r_i \leftarrow D_{\sigma_2}$ and $f_{i,0} \leftarrow D_{\sigma_2}$
+            \item Sample $\{f_{i,j} \in R_q \}_{j \in [\ell]}$ from $D_{\sigma_3}$
+            \item Set $ct_{i,0} = ar_i + f_{i,0}$
+            \item For $j \in [\ell]$: $ct_{i,j} = pk_j r_i + f_{i,j} + \lfloor q/K \rfloor \cdot \hat{f}_{i,j} \cdot 1_R$
+            \item Set $\mathsf{fct}_i = (ct_{i,0}, \{ct_{i,j}\}_{j \in [\ell]})$
+        \end{itemize}
+    \end{itemize}
+    \item Set $\mathsf{fct}=\{\mathsf{fct}_i\}_{i=0}^{k-1}$
+    \item Generate NIZK proof $\pi_{\mathbf{F}}$ for relation:
+    \begin{align*}
+    R_{\mathsf{fgen}} = \{((\mathsf{fct},\mathbf{F}), (\mathbf{f},\mathbf{R})) : \mathbf{F} = [\mathbf{f}|\cdots|\mathbf{f}_{k-1}]\cdot \mathbf{R} \land \mathbf{R} \text{ is invertible}\}
+    \end{align*}
+    \item Return $(\mathbf{F},\mathsf{fct},\pi_\mathbf{F},\mathbf{R})$
+\end{itemize}
+
+\item $\mathsf{Rank}(\mathbf{F},\mathbf{v})$:
+\begin{itemize}
+    \item Compute $r_F \leftarrow \mathsf{rank}(\mathbf{F})$
+    \item Compute $r_v \leftarrow \mathsf{rank}(\mathbf{v})$
+    \item Construct augmented matrix $\mathbf{A} \leftarrow [\mathbf{F}|\mathbf{v}]$
+    \item Compute $r_A \leftarrow \mathsf{rank}(\mathbf{A})$
+    \item If $r_A = r_F + r_v$, return 1; otherwise return 0
+\end{itemize}
+
+\item $\mathsf{AdvGen}(\mathbf{x}, \mathbf{X}, \mathsf{crs})$:
+   \begin{itemize}
+       \item Verify $\mathbf{X} = g^\mathbf{x}$ 
+       \item Generate NIZK proof $\pi_{adv}$ for relation:
+           \begin{align*}
+           R_{\mathsf{adv}} = \{(\mathbf{X}, \mathbf{x}) : \mathbf{X} = g^\mathbf{x}\}
+           \end{align*}
+       \item Set $\mathsf{adv} = \mathbf{X}$
+       \item Return $(\mathsf{adv}, \pi_{adv})$
+   \end{itemize}
+
+\item $\mathsf{AdvVrf}(\mathsf{crs}, \mathsf{adv}, \pi_{adv})$:
+   \begin{itemize}
+       \item Parse $\mathsf{adv}$ as group element $\mathbf{X} \in \mathbb{G}$
+       \item Return $\mathsf{NIZK.Verify}(\mathsf{crs}, \mathsf{adv}, \pi_{adv})$
+   \end{itemize}
+
+\item $\mathsf{Enc}(\mathbf{x}, \mathsf{pk_E}, \mathsf{adv}, \mathsf{crs})$:
+   \begin{itemize}
+       \item Parse $\mathbf{x}=\{x_1,\ldots,x_\ell\}$ where $||\mathbf{x}||_\infty \leq B_x$
+       \item Parse $\mathsf{pk_E} = (\mathbf{b}_E, \mathbf{a}_E)$
+       \item For each $i \in [\ell]$:
+           \begin{itemize}
+               \item Map $x_i$ to $\mathbf{m}_i \in R_t$
+               \item Sample uniformly random $\mathbf{u}_i \leftarrow R_q$
+               \item Sample noise $\mathbf{e}_{i,0}, \mathbf{e}_{i,1} \leftarrow \chi_{\sigma_2}$
+               \item Compute $\mathbf{c}_{i,0} = \Delta \cdot \mathbf{m}_i + \mathbf{e}_{i,0} + \mathbf{u}_i \cdot \mathbf{a}_E \in R_q$
+               \item Compute $\mathbf{c}_{i,1} = \mathbf{e}_{i,1} + \mathbf{u}_i \in R_q$
+           \end{itemize}
+       \item Let $\mathsf{dct}=\{(\mathbf{c}_{i,0}, \mathbf{c}_{i,1})\}_{i \in [\ell]}$
+       \item Generate NIZK proof $\pi_{\mathsf{dct}}$ for relation:
+           \begin{align*}
+           R_{\mathsf{enc}} = \{((\mathsf{dct},\mathsf{adv}), \mathbf{x}) : \mathsf{dct} = \mathsf{BFV.Enc(pk_E,\mathbf{x})} \\\land ||\mathbf{x}||_\infty \leq B_x \land \mathsf{adv}=g^\mathbf{x}\}
+           \end{align*}
+       \item Return $(\mathsf{dct},\pi_{\mathsf{dct}})$
+   \end{itemize}
+   
+\item $\mathsf{EncVrf}(\mathsf{crs}, \mathsf{dct}, \mathsf{adv}, \pi_{\mathsf{dct}})$:
+   \begin{itemize}
+       \item Return $\mathsf{NIZK.Verify}(\mathsf{crs}, (\mathsf{dct},\mathsf{adv}), \pi_{\mathsf{dct}})$
+   \end{itemize}
+
+\item $\mathsf{Encode}(\mathsf{msk}, \mathsf{dct})$:
+   \begin{itemize}
+       \item Parse $\mathsf{msk}=\{\mathbf{s}_i\}_{i \in [\ell]}$ and $\mathsf{dct}=\{(\mathbf{c}_{i,0}, \mathbf{c}_{i,1})\}_{i \in [\ell]}$
+       \item Compute homomorphic operations on $\mathsf{dct}$ using $\mathsf{msk}$:
+           \begin{itemize}
+               \item Initialize $\mathsf{sk'_0} = 0 \in R_q$ and $\mathsf{sk'_1} = 0 \in R_q$
+               \item For each $i \in [\ell]$:
+                   \begin{itemize}
+                       \item Compute scalar multiplication using BFV operations: 
+                           \begin{align*}
+                           (\mathbf{c}'_{i,0}, \mathbf{c}'_{i,1}) = \mathsf{BFV.ScalarMult}((\mathbf{c}_{i,0}, \mathbf{c}_{i,1}), \mathbf{s}_i)
+                           \end{align*}
+                       \item Update $\mathsf{sk'_0} = \mathsf{sk'_0} + \mathbf{c}'_{i,0} \bmod q$
+                       \item Update $\mathsf{sk'_1} = \mathsf{sk'_1} + \mathbf{c}'_{i,1} \bmod q$
+                   \end{itemize}
+               \item Set $\mathsf{sk'} = (\mathsf{sk'_0}, \mathsf{sk'_1})$
+           \end{itemize}
+       \item Return $\mathsf{sk'}$
+   \end{itemize}
+
+\item $\mathsf{Decode}(\mathsf{fct}, \mathbf{F}, \pi_{\mathbf{F}}, \mathsf{sk'}, \mathsf{sk_E}, \mathbf{x}, \mathsf{crs})$:
+   \begin{itemize}
+       \item Check $\mathsf{NIZK.Verify}(\mathsf{crs}, (\mathsf{fct},\mathbf{F}), \pi_{\mathbf{F}}) \stackrel{?}{=} 1$; otherwise abort
+       \item For $i\in [\ell]$:
+           \begin{list}{\arabic{num}:}{\usecounter{num}\leftmargin=1em \itemsep=0.5ex}
+               \item Define trivial function $\mathbf{f}'_i \in \mathbb{Z}_p^\ell$ where only the $i$-th element is $1$ and others are $0$
+               \item Assign $[\mathbf{F}|\mathbf{f}'_i]$ to $\mathbf{F}_i$
+               \item If $\mathsf{rank}(\mathbf{F}_i) \neq \mathsf{rank}(\mathbf{F}) + \mathsf{rank}(\mathbf{f}'_i)$, abort
+           \end{list}
+       \item Parse $\mathsf{sk'} = (\mathsf{sk'_0}, \mathsf{sk'_1})$ and $\mathsf{sk_E} = \mathbf{s}_E$
+       \item Decrypt $\mathsf{sk'}$ using BFV decryption:
+           \begin{align*}
+           \mathbf{v} &= \mathsf{sk'_0} + \mathsf{sk'_1} \cdot \mathbf{s}_E \bmod q \\
+           \mathsf{sk}_{\mathbf{x}} &= \lfloor \frac{t \cdot \mathbf{v}}{q} \rceil \bmod t
+           \end{align*}
+       \item For $0\leq i\leq k-1$:
+       \begin{itemize}
+           \item Parse $\mathsf{fct}_i = (ct_{i,0}, \{ct_{i,j}\}_{j\in[\ell]})$
+           \item Compute $d_i = \left(\sum_{j=1}^\ell x_j \cdot ct_{i,j}\right) - ct_{i,0} \cdot \mathsf{sk}_{\mathbf{x}} \bmod R_q$
+           \item For each coefficient $d_{i,j}$ of polynomial $d_i$:
+               \begin{itemize}
+                   \item If $d_{i,j} > q/2$: $d_{i,j} = d_{i,j} - q$
+                   \item Compute $z_{i,j} = \lfloor \frac{d_{i,j} \cdot K}{\lfloor q/K \rfloor} \rceil$
+               \end{itemize}
+           \item Set $y_i = z_{i,0}$ (constant term) as $\langle \mathbf{\hat{f}}_i, \mathbf{x} \rangle$
+       \end{itemize}
+       \item Return $\mathbf{y}=\{y_i\}_{i=0}^{k-1}$
+   \end{itemize}
+
+\item $\mathsf{Commit}(\mathsf{pp}, \mathbf{y})$:
+   \begin{itemize}
+       \item Parse $\{y_i\}_{i=0}^{k-1} \leftarrow \mathbf{y}$
+       \item For $0\leq i\leq k-1$: Compute $Y_i = g^{y_i}$
+       \item Return $\mathbf{Y} = \{Y_i\}_{i=0}^{k-1}$
+   \end{itemize}
+
+\item $\mathsf{PreSign}(\mathsf{sk_S}, m, \mathbf{Y})$:
+   \begin{itemize}
+       \item Parse $\{Y_i\}_{i=0}^{k-1} \leftarrow \mathbf{Y}$
+       \item For $0\leq i\leq k-1$:
+       \begin{itemize}
+           \item Sample $r_i \leftarrow \mathbb{Z}_p$
+           \item Compute $R_i = g^{r_i}$
+           \item Compute $c_i = H(\mathsf{pk_S}||R_i || Y_i||m)$
+           \item Compute $s_i = r_i + c_i \cdot \mathsf{sk_S}$
+           \item Set $\widetilde{\sigma}_i = (R_i,s_i)$
+       \end{itemize}
+       \item Return $\widetilde{\sigma} = \{\widetilde{\sigma}_i\}_{i=0}^{k-1}$
+   \end{itemize}
+   
+\item $\mathsf{PreVrf}(\mathsf{pk_S}, m, \mathbf{Y}, \widetilde{\sigma})$:
+   \begin{itemize}
+       \item Parse $\{Y_i\}_{i=0}^{k-1} \leftarrow \mathbf{Y}$
+       \item Parse $\{\widetilde{\sigma}_i\}_{i=0}^{k-1} \leftarrow \widetilde{\sigma}$
+       \item For $0\leq i\leq k-1$:
+       \begin{itemize}
+           \item Parse $\widetilde{\sigma}_i = (R_i,s_i)$
+           \item Compute $c_i = H(\mathsf{pk_S}||R_i ||Y_i||m)$
+           \item Verify $g^{s_i} = R_i \cdot \mathsf{pk_S}^{c_i}$
+           \item If verification fails, return 0
+       \end{itemize}
+       \item Return 1
+   \end{itemize}
+
+\item $\mathsf{Adapt}(\widetilde{\sigma}, \mathbf{y})$:
+   \begin{itemize}
+       \item Parse $\{\widetilde{\sigma}_i\}_{i=0}^{k-1} \leftarrow \widetilde{\sigma}$
+       \item Parse $\{y_i\}_{i=0}^{k-1} \leftarrow \mathbf{y}$
+       \item For $0\leq i\leq k-1$:
+       \begin{itemize}
+           \item Parse $\widetilde{\sigma}_i = (R_i,s_i)$
+           \item Compute adapted signature $\sigma_i = (R_i, s_i + y_i)$
+       \end{itemize}
+       \item Return $\sigma = \{\sigma_i\}_{i=0}^{k-1}$
+   \end{itemize}
+
+\item $\mathsf{Verify}(\mathsf{pk_S}, m, \sigma)$:
+   \begin{itemize}
+       \item Parse $\{\sigma_i\}_{i=0}^{k-1} \leftarrow \sigma$
+       \item For $0\leq i\leq k-1$:
+       \begin{itemize}
+           \item Parse $\sigma_i = (R_i,s_i)$
+           \item Compute $Y_i = g^{y_i}$ (where $y_i$ is extracted from signature)
+           \item Compute $c_i = H(\mathsf{pk_S}||R_i|| Y_i||m)$
+           \item Verify $g^{s_i} = R_i \cdot \mathsf{pk_S}^{c_i} \cdot Y_i$
+           \item If verification fails, return 0
+       \end{itemize}
+       \item Return 1
+   \end{itemize}
+
+\item $\mathsf{Ext}(\widetilde{\sigma}, \sigma,\mathbf{Y},\mathbf{R})$:
+   \begin{itemize}
+       \item Parse $\{\widetilde{\sigma}_i\}_{i=0}^{k-1} \leftarrow \widetilde{\sigma}$
+       \item Parse $\{\sigma_i\}_{i=0}^{k-1} \leftarrow \sigma$
+       \item Parse $\{Y_i\}_{i=0}^{k-1} \leftarrow \mathbf{Y}$
+       \item For $0\leq i\leq k-1$:
+       \begin{itemize}
+           \item Parse $\widetilde{\sigma}_i = (R_i,s_i)$ and $\sigma_i = (R_i',s_i')$
+           \item If $R_i \neq R_i'$, return $\perp$
+           \item Compute $\hat{f}_i(\mathbf{x}) = s_i' - s_i$
+       \end{itemize}
+       \item Compute $[\mathbf{f(x)}|\cdots|\mathbf{f}_{k-1}(\mathbf{x})]\leftarrow [\mathbf{\hat{f}_0}(\mathbf{x})|\cdots|\mathbf{\hat{f}_{k-1}}(\mathbf{x})]\cdot \mathbf{R}^{-1}$
+       \item Return $\mathbf{f(x)}$
+   \end{itemize}
+\end{itemize}
+
+\paragraph{Correctness}
+We now prove that the lattice-based PFA protocol with BFV encryption correctly computes the function evaluation result $\langle \mathbf{f}, \mathbf{x} \rangle$ despite the masking and encoding operations. In lattice-based approaches, noise management is crucial, so our analysis focuses on the noise growth through the BFV homomorphic operations.
+
+\begin{enumerate}
+    \item \textbf{BFV Encryption of Input:} The seller encrypts each component $x_i$ of input vector $\mathbf{x}$ using BFV:
+    \begin{align*}
+        \mathbf{c}_{i,0} &= \Delta \cdot \mathbf{m}_i + \mathbf{e}_{i,0} + \mathbf{u}_i \cdot \mathbf{a}_E \\
+        \mathbf{c}_{i,1} &= \mathbf{e}_{i,1} + \mathbf{u}_i
+    \end{align*}
+    where $\mathbf{m}_i$ represents $x_i$ mapped to the ring $R_t$, $\Delta = \lfloor q/t \rfloor$ is the scaling factor, and $\mathbf{u}_i$ is the randomness for encryption.
+    
+    \item \textbf{Function Encoding and Encryption:} The buyer encodes their function $\mathbf{f}$ using random vectors $\mathbf{f}_1, \ldots, \mathbf{f}_{k-1}$ and invertible matrix $\mathbf{R} \in \mathbb{Z}_p^{k \times k}$:
+    \begin{align*}
+        \mathbf{F} = [\mathbf{f}|\mathbf{f}_1|\cdots|\mathbf{f}_{k-1}] \cdot \mathbf{R} = [\mathbf{\hat{f}}_0|\mathbf{\hat{f}}_1|\cdots|\mathbf{\hat{f}}_{k-1}]
+    \end{align*}
+
+    Additionally, the buyer creates lattice-based LinFE encryptions for each encoded function vector:
+    \begin{align*}
+        \mathsf{fct}_i = (ct_{i,0}, \{ct_{i,j}\}_{j=1}^{\ell}) \text{ for } 0 \leq i \leq k-1
+    \end{align*}
+    where $ct_{i,j} = pk_j r_i + f_{i,j} + \lfloor q/K \rfloor \cdot \hat{f}_{i,j} \cdot 1_R$ and $\hat{f}_{i,j}$ is the $j$-th component of $\mathbf{\hat{f}}_i$.
+    
+    \item \textbf{Homomorphic Function Secret Key Computation:} In the $\mathsf{Encode}$ function, the buyer computes:
+    \begin{align*}
+        \mathsf{sk'} &= \sum_{i=1}^\ell \mathsf{BFV.ScalarMult}((\mathbf{c}_{i,0}, \mathbf{c}_{i,1}), \mathbf{s}_i) \\
+        &= \sum_{i=1}^\ell (\mathbf{s}_i \cdot \mathbf{c}_{i,0}, \mathbf{s}_i \cdot \mathbf{c}_{i,1})
+    \end{align*}
+    This leverages BFV's homomorphic properties to compute an encryption of $\sum_{i=1}^{\ell} s_i \cdot x_i$.
+    
+    \item \textbf{Function Secret Key Decryption:} In the $\mathsf{Decode}$ function, the seller first verifies the function set $\mathbf{F}$ using the NIZK proof $\pi_{\mathbf{F}}$. Then, for each $i \in [\ell]$, the seller constructs trivial function $\mathbf{f}'_i \in \mathbb{Z}_p^\ell$ where only the $i$-th element is $1$ and others are $0$, and verifies:
+    \begin{align*}
+        \mathsf{rank}([\mathbf{F}|\mathbf{f}'_i]) = \mathsf{rank}(\mathbf{F}) + \mathsf{rank}(\mathbf{f}'_i)
+    \end{align*}
+    
+    The seller then decrypts $\mathsf{sk'}$ using BFV decryption:
+    \begin{align*}
+        \mathbf{v} &= \mathsf{sk'_0} + \mathsf{sk'_1} \cdot \mathbf{s}_E \\
+        &= \sum_{i=1}^\ell \mathbf{s}_i \cdot \mathbf{c}_{i,0} + \sum_{i=1}^\ell \mathbf{s}_i \cdot \mathbf{c}_{i,1} \cdot \mathbf{s}_E
+    \end{align*}
+    
+    Substituting the BFV ciphertext definitions:
+    
+    \begin{align*}
+        \mathbf{v} &= \sum_{i=1}^\ell \mathbf{s}_i \cdot (\Delta \cdot \mathbf{m}_i + \mathbf{e}_{i,0} + \mathbf{u}_i \cdot \mathbf{a}_E) \\
+        &\quad + \sum_{i=1}^\ell \mathbf{s}_i \cdot (\mathbf{e}_{i,1} + \mathbf{u}_i) \cdot \mathbf{s}_E
+    \end{align*}
+    
+    Since $\mathbf{b}_E = -(\mathbf{a}_E \cdot \mathbf{s}_E + \mathbf{e}_E)$, we have $\mathbf{a}_E \cdot \mathbf{s}_E = -\mathbf{b}_E - \mathbf{e}_E$:
+    
+    \begin{align*}
+        \mathbf{v} &= \sum_{i=1}^\ell \mathbf{s}_i \cdot (\Delta \cdot \mathbf{m}_i + \mathbf{e}_{i,0} + \mathbf{u}_i \cdot (-\mathbf{b}_E - \mathbf{e}_E)) \\
+        &\quad + \sum_{i=1}^\ell \mathbf{s}_i \cdot (\mathbf{e}_{i,1} + \mathbf{u}_i) \cdot \mathbf{s}_E \\
+        &= \Delta \cdot \sum_{i=1}^\ell \mathbf{s}_i \cdot \mathbf{m}_i + \text{small noise terms}
+    \end{align*}
+    
+    The $\mathbf{u}_i$ terms involving $\mathbf{a}_E$ and $\mathbf{s}_E$ cancel out in the BFV decryption process, leaving us with the desired sum $\sum_{i=1}^\ell \mathbf{s}_i \cdot \mathbf{m}_i$ scaled by $\Delta$, plus some small noise terms.
+    
+    After scaling and rounding: $\mathsf{sk}_{\mathbf{x}} = \lfloor \frac{t \cdot \mathbf{v}}{q} \rceil \bmod t \approx \sum_{i=1}^\ell \mathbf{s}_i \cdot x_i$
+    
+    \item \textbf{Lattice-based LinFE Decryption:} The seller decrypts each $\mathsf{fct}_i$ using $\mathsf{sk}_{\mathbf{x}}$ to obtain the function evaluation results. Using the decrypted key $\mathsf{sk}_{\mathbf{x}}$ and the lattice-based ciphertext $\mathsf{fct}_i = (ct_{i,0}, \{ct_{i,j}\}_{j\in[\ell]})$, we compute:
+    \begin{align*}
+        d_i &= \left(\sum_{j=1}^\ell x_j \cdot ct_{i,j}\right) - ct_{i,0} \cdot \mathsf{sk}_{\mathbf{x}} \bmod R_q
+    \end{align*}
+    
+    Through a similar process of cancellation and noise management as in the standard LinFE decryption, we get:
+    \begin{align*}
+        d_i &= \lfloor \frac{q}{K} \rfloor \cdot \langle \mathbf{\hat{f}}_i, \mathbf{x} \rangle \cdot 1_R + \text{noise terms}
+    \end{align*}
+    
+    After scaling and rounding each coefficient, we obtain $y_i = \langle \mathbf{\hat{f}}_i, \mathbf{x} \rangle$ for $0 \leq i \leq k-1$.
+    
+    This gives the seller computation results $\mathbf{y} = \{y_i\}_{i=0}^{k-1}$ where $y_i = \langle \mathbf{\hat{f}}_i, \mathbf{x} \rangle$.
+    
+    \item \textbf{Fair Exchange:} Once $\mathbf{y} = \{y_i\}_{i=0}^{k-1}$ is computed, the adaptor signature mechanism ensures fair exchange:
+    \begin{itemize}
+        \item Seller computes commitment vector $\mathbf{Y} = \{Y_i\}_{i=0}^{k-1}$ where $Y_i = g^{y_i}$
+        \item Buyer generates pre-signature vector $\widetilde{\sigma} = \{\widetilde{\sigma}_i\}_{i=0}^{k-1}$ where $\widetilde{\sigma}_i = (R_i, s_i)$
+        \item Seller can only adapt each $\widetilde{\sigma}_i$ to valid signature $\sigma_i = (R_i, s_i+y_i)$ if they know the correct $y_i$ values
+        \item Buyer can extract each $y_i = s_i' - s_i$ from $\sigma_i$ only after seller posts the signature vector to the ledger
+    \end{itemize}
+
+    \item \textbf{Result Extraction:} Finally, the buyer extracts the original function evaluation $\mathbf{f}(\mathbf{x})$ using the randomness matrix:
+    \begin{align*}
+        [\mathbf{f}(\mathbf{x})|\mathbf{f}_1(\mathbf{x})|\cdots|\mathbf{f}_{k-1}(\mathbf{x})] = [\mathbf{\hat{f}}_0(\mathbf{x})|\mathbf{\hat{f}}_1(\mathbf{x})|\cdots|\mathbf{\hat{f}}_{k-1}(\mathbf{x})] \cdot \mathbf{R}^{-1}
+    \end{align*}
+    where $\mathbf{\hat{f}}_i(\mathbf{x}) = y_i$ for $0 \leq i \leq k-1$. The buyer obtains $\mathbf{f}(\mathbf{x}) = \langle \mathbf{f}, \mathbf{x} \rangle$ as the first component of the result vector.
+    
+    This creates mutual dependency: the seller must provide the correct result vector to receive payment, and the buyer can obtain the original function evaluation only after payment confirmation.
+\end{enumerate}
+
+Therefore, despite the masking and encoding operations, the Lattice-based PFA protocol with BFV encryption correctly computes the function evaluation result $\langle \mathbf{f}, \mathbf{x} \rangle$ and ensures fair exchange through the adaptor signature mechanism.
+
+\paragraph{Remark}
+In lattice-based implementations with BFV encryption, parameter selection is critical. The parameters must satisfy certain constraints to ensure correctness:
+\begin{align*}
+    \text{(Noise bound)} < \frac{q}{2t} \text{ and } \text{(Decryption noise)} < \frac{q}{2K}
+\end{align*}
+These conditions ensure that the accumulated noise during homomorphic operations and decryption does not interfere with correct rounding. The selection of cyclotomic polynomial degree $n$, moduli $q$ and $t$, scaling factor $\Delta = \lfloor q/t \rfloor$, and error distributions must balance security with noise tolerance. BFV's noise growth is typically more predictable than BGV, making parameter selection more straightforward while maintaining equivalent security levels.
